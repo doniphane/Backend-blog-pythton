@@ -1,8 +1,9 @@
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -51,3 +52,41 @@ def get_current_user(
     if user is None:
         raise credentials_exc
     return user
+
+
+def get_optional_user(
+    request: Request, db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Utilisateur connecté s'il y a un token valide, sinon None (jamais 401).
+
+    Permet aux routes publiques d'adapter leur réponse (ex. : masquer les
+    brouillons aux non-admins) sans exiger d'authentification.
+    """
+    auth = request.headers.get("Authorization", "")
+    scheme, _, token = auth.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    try:
+        payload = jwt.decode(
+            token.strip(), settings.secret_key, algorithms=[settings.jwt_algorithm]
+        )
+        email = payload.get("sub")
+    except jwt.PyJWTError:
+        return None
+    if not email:
+        return None
+    return db.query(User).filter(User.email == email).first()
+
+
+def is_admin_user(user: Optional[User]) -> bool:
+    return user is not None and user.role == "admin"
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Garde les routes réservées aux administrateurs (publication d'articles...)."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Réservé aux administrateurs",
+        )
+    return current_user

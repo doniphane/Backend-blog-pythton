@@ -8,10 +8,18 @@ class PostBase(BaseModel):
     title: str
     content: str
     published: bool = True
+    thumbnail_url: Optional[str] = None
 
 
 class PostCreate(PostBase):
     pass
+
+
+class PostUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    published: Optional[bool] = None
+    thumbnail_url: Optional[str] = None
 
 
 class PostOut(PostBase):
@@ -37,6 +45,11 @@ class UserOut(BaseModel):
     display_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    role: str = "user"
+
+
+class RoleUpdate(BaseModel):
+    role: str = Field(pattern="^(user|admin)$")
 
 
 class UserUpdate(BaseModel):

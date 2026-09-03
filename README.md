@@ -38,6 +38,41 @@ docker compose up --build
 ```
 
 API disponible sur http://localhost:8000/docs (Swagger).
+Console MinIO sur http://localhost:9001.
+
+## Miniatures des posts (MinIO / S3)
+
+- Les miniatures sont stockées dans le bucket S3 **minuaturepost** (MinIO `localhost:9000`).
+- Toute la config est en variables d'environnement (voir `.env.example`) :
+  `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`,
+  `MINIO_BUCKET`, `MINIO_SECURE`, `MINIO_PUBLIC_URL`.
+- La colonne `posts.thumbnail_url` contient l'URL publique du fichier.
+- Endpoints (authentifié, propriétaire du post) :
+  - `POST /posts/{id}/thumbnail` (multipart `file` : JPEG/PNG/WebP/GIF, max 5 Mo)
+  - `DELETE /posts/{id}/thumbnail`
+  - `PATCH /posts/{id}` (peut aussi définir `thumbnail_url` directement)
+
+```bash
+curl -X POST localhost:8000/posts/1/thumbnail -H "Authorization: Bearer $TOKEN" \
+  -F "file=@miniature.png"
+```
+
+## Rôles : user / admin
+
+- Tout nouveau compte est créé avec le rôle **`user`** (lecture des articles en entier,
+  pas de publication).
+- Seuls les **`admin`** peuvent créer / modifier / supprimer des articles
+  (`POST/PATCH/DELETE /posts…` → `403` sinon).
+- Les **brouillons** (`published: false`) sont invisibles pour tout le monde sauf les
+  admins : exclus de `GET /posts` et `404` sur `GET /posts/{id}` pour les non-admins.
+- Emails administrateurs au démarrage via `.env` : `ADMIN_EMAILS=moi@exemple.com`.
+- Gestion des rôles (admin uniquement) :
+  - `GET /auth/users` — liste des comptes
+  - `PATCH /auth/users/{id}/role` — `{"role": "admin" | "user"}`
+- Promotion manuelle d'un compte existant :
+  ```bash
+  .venv/bin/python scripts/promote_admin.py moi@exemple.com
+  ```
 
 ## Démarrage en local (sans Docker)
 

@@ -3,11 +3,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app import security
+from app.config import settings
 from app.database import get_db
 from app.models import User
 from app.schemas import (
     EmailUpdate,
     PasswordChange,
+    RoleUpdate,
     Token,
     UserCreate,
     UserOut,
@@ -15,6 +17,12 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _is_bootstrap_admin(email: str) -> bool:
+    """Vrai si l'email figure dans ADMIN_EMAILS (.env)."""
+    allowed = {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
+    return email.strip().lower() in allowed
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -25,6 +33,9 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     user = User(
         email=payload.email,
         hashed_password=security.hash_password(payload.password),
+        # Par défaut tout nouveau compte est "user" (lecture seule).
+        # Seuls les emails listés dans ADMIN_EMAILS démarrent administrateurs.
+        role="admin" if _is_bootstrap_admin(payload.email) else "user",
     )
     db.add(user)
     db.commit()
@@ -50,6 +61,37 @@ def login(
 @router.get("/me", response_model=UserOut)
 def read_me(current_user: User = Depends(security.get_current_user)):
     return current_user
+
+
+@router.get("/users", response_model=list[UserOut])
+def list_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(security.require_admin),
+):
+    """Liste les comptes (admin uniquement — pour gérer les rôles)."""
+    return db.query(User).order_by(User.created_at.desc()).all()
+
+
+@router.patch("/users/{user_id}/role", response_model=UserOut)
+def set_user_role(
+    user_id: int,
+    payload: RoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(security.require_admin),
+):
+    """Promeut / rétrograde un compte (admin uniquement)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == current_user.id and payload.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vous ne pouvez pas retirer votre propre rôle admin",
+        )
+    user.role = payload.role
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @router.patch("/me", response_model=UserOut)

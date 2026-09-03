@@ -24,12 +24,38 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://blog:blogpass@db:5432/blogdb
-      SECRET_KEY: change-me-in-production
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-noelson}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-noelson01}
+      MINIO_BUCKET: ${MINIO_BUCKET:-minuaturepost}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
     ports:
       - "8000:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-noelson}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-noelson01}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:
+  miniodata:

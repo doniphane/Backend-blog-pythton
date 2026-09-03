@@ -13,6 +13,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Rôle : "user" (défaut, lecture seule) ou "admin" (peut publier des articles).
+    role: Mapped[str] = mapped_column(String(20), default="user", server_default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -28,6 +30,9 @@ class Post(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     published: Mapped[bool] = mapped_column(default=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(
+        String(1024), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
