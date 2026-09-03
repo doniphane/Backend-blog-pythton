@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:3002"
 
     # Emails promus automatiquement administrateurs à l'inscription
     # (liste séparée par des virgules). Ex. : "moi@exemple.com,admin@exemple.com"
