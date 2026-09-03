@@ -28,6 +28,9 @@ class PostOut(PostBase):
     id: int
     owner_id: int
     created_at: datetime
+    # Infos publiques de l'auteur (byline affichée sur le frontend).
+    author_display_name: Optional[str] = None
+    author_avatar_url: Optional[str] = None
 
 
 class UserCreate(BaseModel):

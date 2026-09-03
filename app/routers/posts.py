@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app import security, storage
 from app.database import get_db
@@ -7,6 +7,22 @@ from app.models import Post, User
 from app.schemas import PostCreate, PostOut, PostUpdate
 
 router = APIRouter(prefix="/posts", tags=["posts"])
+
+
+def _to_out(post: Post) -> PostOut:
+    """Construit le PostOut en incluant les infos publiques de l'auteur."""
+    owner = post.owner
+    return PostOut(
+        id=post.id,
+        title=post.title,
+        content=post.content,
+        published=post.published,
+        thumbnail_url=post.thumbnail_url,
+        owner_id=post.owner_id,
+        created_at=post.created_at,
+        author_display_name=owner.display_name if owner else None,
+        author_avatar_url=owner.avatar_url if owner else None,
+    )
 
 
 def _get_post_or_404(post_id: int, db: Session) -> Post:
@@ -33,7 +49,8 @@ def create_post(
     db.add(post)
     db.commit()
     db.refresh(post)
-    return post
+    post.owner = current_user
+    return _to_out(post)
 
 
 @router.get("", response_model=list[PostOut])
@@ -42,10 +59,11 @@ def list_posts(
     current_user: User | None = Depends(security.get_optional_user),
 ):
     """Liste les articles. Les brouillons ne sont visibles que par les admins."""
-    query = db.query(Post)
+    query = db.query(Post).options(joinedload(Post.owner))
     if not security.is_admin_user(current_user):
         query = query.filter(Post.published == True)  # noqa: E712
-    return query.order_by(Post.created_at.desc()).all()
+    posts = query.order_by(Post.created_at.desc()).all()
+    return [_to_out(post) for post in posts]
 
 
 @router.get("/{post_id}", response_model=PostOut)
@@ -58,7 +76,7 @@ def get_post(
     post = _get_post_or_404(post_id, db)
     if not post.published and not security.is_admin_user(current_user):
         raise HTTPException(status_code=404, detail="Post not found")
-    return post
+    return _to_out(post)
 
 
 @router.patch("/{post_id}", response_model=PostOut)
@@ -74,7 +92,7 @@ def update_post(
         setattr(post, field, value)
     db.commit()
     db.refresh(post)
-    return post
+    return _to_out(post)
 
 
 @router.post("/{post_id}/thumbnail", response_model=PostOut)
@@ -115,7 +133,7 @@ async def upload_post_thumbnail(
     post.thumbnail_url = url
     db.commit()
     db.refresh(post)
-    return post
+    return _to_out(post)
 
 
 @router.delete(
@@ -133,7 +151,7 @@ def delete_post_thumbnail(
         post.thumbnail_url = None
         db.commit()
         db.refresh(post)
-    return post
+    return _to_out(post)
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)

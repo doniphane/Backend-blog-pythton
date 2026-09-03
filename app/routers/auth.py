@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app import security
+from app import security, storage
 from app.config import settings
 from app.database import get_db
 from app.models import User
@@ -125,6 +125,57 @@ def update_email(
         current_user.email = payload.email
         db.commit()
     return {"access_token": security.create_access_token(subject=current_user.email)}
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(security.get_current_user),
+):
+    """Upload l'avatar de l'utilisateur connecté vers le bucket S3/MinIO.
+
+    Le fichier est stocké dans le bucket ``MINIO_BUCKET`` (préfixe ``avatars/``)
+    et l'URL publique est sauvegardée en base dans ``users.avatar_url``.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le fichier doit être une image (JPEG, PNG, WebP, GIF).",
+        )
+
+    data = await file.read()
+    try:
+        url = storage.upload_avatar(data, file.content_type)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)
+        )
+
+    # Supprime l'ancien avatar (best-effort) pour éviter les orphelins.
+    if current_user.avatar_url:
+        storage.delete_by_url(current_user.avatar_url)
+
+    current_user.avatar_url = url
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.delete("/me/avatar", response_model=UserOut)
+def delete_my_avatar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(security.get_current_user),
+):
+    """Supprime l'avatar de l'utilisateur connecté."""
+    if current_user.avatar_url:
+        storage.delete_by_url(current_user.avatar_url)
+        current_user.avatar_url = None
+        db.commit()
+        db.refresh(current_user)
+    return current_user
 
 
 @router.post("/change-password")

@@ -1,4 +1,5 @@
-"""Service de stockage objet S3-compatible (MinIO) pour les miniatures des posts.
+"""Service de stockage objet S3-compatible (MinIO) pour les miniatures des posts
+et les avatars des utilisateurs.
 
 Toute la configuration vient de ``app.config.settings`` donc des variables
 d'environnement (.env) — aucun identifiant en dur.
@@ -115,6 +116,15 @@ def ensure_bucket() -> None:
 
 def upload_thumbnail(data: bytes, content_type: str) -> str:
     """Upload un fichier image et retourne son URL publique."""
+    return _upload_image(data, content_type, prefix="posts")
+
+
+def upload_avatar(data: bytes, content_type: str) -> str:
+    """Upload un avatar utilisateur et retourne son URL publique."""
+    return _upload_image(data, content_type, prefix="avatars")
+
+
+def _upload_image(data: bytes, content_type: str, prefix: str) -> str:
     if content_type not in ALLOWED_THUMBNAIL_TYPES:
         raise ValueError(
             f"Type de fichier non supporté : {content_type}. "
@@ -128,7 +138,7 @@ def upload_thumbnail(data: bytes, content_type: str) -> str:
     ensure_bucket()
 
     ext = _EXT_BY_TYPE[content_type]
-    key = f"posts/{uuid.uuid4().hex}{ext}"
+    key = f"{prefix}/{uuid.uuid4().hex}{ext}"
 
     last_err: Exception | None = None
     for endpoint in _candidate_endpoints():
