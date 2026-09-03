@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,6 +14,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    display_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     posts: Mapped[List["Post"]] = relationship("Post", back_populates="owner")
 

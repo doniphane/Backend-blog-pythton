@@ -151,6 +151,88 @@ const user: UserOut = await res.json();
 
 ---
 
+### `PATCH /auth/me`
+Met à jour le profil public. **Protégée** (Bearer). Champs optionnels (`display_name`, `bio`, `avatar_url`) — ne renseigne que ceux à modifier.
+
+**Body (JSON)** :
+```json
+{ "display_name": "Noelson", "bio": "Développeur", "avatar_url": "https://..." }
+```
+
+**Réponses** :
+- `200` → `UserOut`
+- `401` → non authentifié
+
+```ts
+const res = await fetch(`${BASE}/auth/me`, {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ display_name, bio, avatar_url }),
+});
+const user: UserOut = await res.json();
+```
+
+---
+
+### `PATCH /auth/me/email`
+Change l'email. **Protégée** (Bearer). Nécessite le **mot de passe actuel**.
+Renvoie un **nouveau token** (le précédent devient invalide car le `sub` = email change).
+
+**Body (JSON)** :
+```json
+{ "email": "nouveau@x.com", "password": "ancienMotDePasse" }
+```
+
+**Réponses** :
+- `200` → `Token`
+- `400` → `{ "detail": "Email already registered" }`
+- `401` → `{ "detail": "Current password incorrect" }`
+
+```ts
+const res = await fetch(`${BASE}/auth/me/email`, {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ email, password }),
+});
+if (!res.ok) throw new Error((await res.json()).detail);
+const { access_token } = (await res.json()) as Token; // remplace le token stocké
+```
+
+---
+
+### `POST /auth/change-password`
+Change le mot de passe. **Protégée** (Bearer). Nécessite le **mot de passe actuel**.
+Le token existant reste valide (l'email ne change pas).
+
+**Body (JSON)** :
+```json
+{ "current_password": "ancien", "new_password": "nouveauSecret123" }
+```
+
+**Réponses** :
+- `200` → `{ "detail": "Password updated" }`
+- `401` → `{ "detail": "Current password incorrect" }`
+
+```ts
+const res = await fetch(`${BASE}/auth/change-password`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ current_password, new_password }),
+});
+if (res.status === 401) throw new Error("Current password incorrect");
+```
+
+---
+
 ### `POST /posts`
 Crée un article. **Protégée** (Bearer). L'`owner_id` est assigné automatiquement.
 

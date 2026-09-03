@@ -25,6 +25,7 @@ class PostOut(PostBase):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    display_name: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -33,6 +34,25 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     created_at: datetime
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class EmailUpdate(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class Token(BaseModel):
